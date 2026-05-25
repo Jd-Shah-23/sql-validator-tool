@@ -3,6 +3,7 @@ package com.ibm.aip.validator.reporter;
 import com.ibm.aip.validator.extractor.SQLQuery;
 import com.ibm.aip.validator.extractor.ValidationResult;
 import com.ibm.aip.validator.validator.MultiDatabaseValidator;
+import com.ibm.aip.validator.validator.RuntimeValidator.RuntimeResult;
 
 import java.util.List;
 import java.util.Map;
@@ -40,7 +41,11 @@ public class ConsoleReporter {
         Map<String, Integer> issueCount = new HashMap<>();
         
         for (SQLQuery query : queries) {
-            printQueryReport(query);
+            Map<String, RuntimeResult> runtimeResults = null;
+            if (query.getRuntimeResults() != null) {
+                runtimeResults = (Map<String, RuntimeResult>) query.getRuntimeResults();
+            }
+            printQueryReport(query, runtimeResults);
             
             if (query.isCompatibleWithAllDatabases()) {
                 fullyCompatible++;
@@ -84,6 +89,13 @@ public class ConsoleReporter {
      * Print individual query report
      */
     private void printQueryReport(SQLQuery query) {
+        printQueryReport(query, null);
+    }
+    
+    /**
+     * Print individual query report with optional runtime results
+     */
+    public void printQueryReport(SQLQuery query, Map<String, RuntimeResult> runtimeResults) {
         System.out.println("📁 File: " + query.getFileName());
         System.out.println("📍 Line: " + query.getLineNumber());
         System.out.println("🔍 Type: " + query.getQueryType());
@@ -165,9 +177,96 @@ public class ConsoleReporter {
             System.out.println("   Please fix the syntax errors first, then re-run the validator");
         }
         
+        // Print runtime validation results if available
+        if (runtimeResults != null && !runtimeResults.isEmpty()) {
+            printRuntimeValidationResults(runtimeResults);
+        }
+        
         System.out.println();
         System.out.println(SEPARATOR);
         System.out.println();
+    }
+    
+    /**
+     * Print runtime validation results
+     */
+    private void printRuntimeValidationResults(Map<String, RuntimeResult> runtimeResults) {
+        System.out.println();
+        System.out.println("╔═══════════════════════════════════════════════════════════════╗");
+        System.out.println("║  🔄 Runtime Validation Results (Actual Database Execution)   ║");
+        System.out.println("╚═══════════════════════════════════════════════════════════════╝");
+        System.out.println();
+        
+        // Check if all results are consistent
+        boolean allConsistent = true;
+        Long referenceCount = null;
+        String referenceDb = null;
+        
+        for (Map.Entry<String, RuntimeResult> entry : runtimeResults.entrySet()) {
+            RuntimeResult result = entry.getValue();
+            if (result.isSuccess()) {
+                if (referenceCount == null) {
+                    referenceCount = result.getRowCount();
+                    referenceDb = entry.getKey();
+                } else if (!referenceCount.equals(result.getRowCount())) {
+                    allConsistent = false;
+                    break;
+                }
+            }
+        }
+        
+        // Print results table
+        System.out.println("┌─────────────┬──────────┬────────────┬─────────────────────────┐");
+        System.out.println("│ Database    │ Status   │ Row Count  │ Execution Time          │");
+        System.out.println("├─────────────┼──────────┼────────────┼─────────────────────────┤");
+        
+        for (Map.Entry<String, RuntimeResult> entry : runtimeResults.entrySet()) {
+            String database = String.format("%-11s", entry.getKey());
+            RuntimeResult result = entry.getValue();
+            
+            String status;
+            String rowCount;
+            String execTime;
+            
+            if (result.isSuccess()) {
+                status = String.format("%-8s", "✅ OK");
+                rowCount = String.format("%-10s", result.getRowCount());
+                execTime = String.format("%-23s", result.getExecutionTime() + " ms");
+            } else {
+                status = String.format("%-8s", "❌ FAIL");
+                rowCount = String.format("%-10s", "N/A");
+                execTime = String.format("%-23s", "Error");
+            }
+            
+            System.out.println(String.format("│ %s │ %s │ %s │ %s │",
+                database, status, rowCount, execTime));
+            
+            // Print error message if any
+            if (!result.isSuccess() && result.getErrorMessage() != null) {
+                String errorMsg = result.getErrorMessage();
+                if (errorMsg.length() > 55) {
+                    errorMsg = errorMsg.substring(0, 52) + "...";
+                }
+                System.out.println(String.format("│ %s │ %s │ %s │",
+                    "           ", "Error:  ", String.format("%-48s", errorMsg) + " │"));
+            }
+        }
+        
+        System.out.println("└─────────────┴──────────┴────────────┴─────────────────────────┘");
+        System.out.println();
+        
+        // Print consistency verdict
+        if (allConsistent && referenceCount != null) {
+            System.out.println("✅ CONSISTENT: All databases returned " + referenceCount + " rows");
+            System.out.println("   The query produces identical results across all databases");
+        } else if (referenceCount != null) {
+            System.out.println("❌ INCONSISTENT: Databases returned different row counts");
+            System.out.println("   ⚠️  WARNING: This query may have database-specific behavior");
+            System.out.println("   Review the query logic and ensure it's truly database-agnostic");
+        } else {
+            System.out.println("⚠️  EXECUTION FAILED: Could not validate consistency");
+            System.out.println("   Check database connections and query syntax");
+        }
     }
     
     /**

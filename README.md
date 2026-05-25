@@ -1,6 +1,6 @@
 # Multi-Database SQL Validator Tool
 
-A comprehensive Java-based static analysis tool that validates SQL queries across DB2, PostgreSQL, and Oracle databases using **JavaParser AST-based extraction**. Detects syntax errors, identifies database-specific incompatibilities, and generates database-agnostic SQL rewrites—all without requiring database connections.
+A comprehensive Java-based tool that validates SQL queries across DB2, PostgreSQL, and Oracle databases using **JavaParser AST-based extraction**. Performs static analysis to detect syntax errors and database incompatibilities, plus optional **runtime validation** that executes queries on actual databases to verify result consistency.
 
 ## 🎯 Purpose
 
@@ -29,8 +29,9 @@ This tool was developed as an innovation project for the Asset Investment Planni
 - Uses JSqlParser for comprehensive validation
 
 ### 🗄️ Multi-Database Validation
-- Validates against DB2, PostgreSQL, and Oracle simultaneously
-- Static analysis (no database connection required)
+- **Static Analysis**: Validates syntax without database connections
+- **Runtime Validation**: Executes SELECT queries on actual databases
+- Compares result counts across all 3 databases
 - Identifies database-specific syntax issues
 - Handles unlimited issues per query
 
@@ -61,19 +62,29 @@ chmod +x build.sh
 
 ### Run
 
-**Validate a single file:**
+**Static Analysis Only (No Database Required):**
 ```bash
+# Validate a single file
 java -jar sql-validator.jar --file path/to/YourFile.java
-```
 
-**Scan entire directory:**
-```bash
+# Scan entire directory
 java -jar sql-validator.jar --scan path/to/directory --recursive
+
+# Scan current directory
+java -jar sql-validator.jar --scan . --recursive
 ```
 
-**Scan current directory:**
+**Runtime Validation (Requires Database Connections):**
 ```bash
-java -jar sql-validator.jar --scan . --recursive
+# First, configure database credentials
+cp config/db-config.properties.example config/db-config.properties
+# Edit config/db-config.properties with your database credentials
+
+# Run with runtime validation
+java -jar sql-validator.jar --scan path/to/directory --recursive --runtime-validate
+
+# Use custom config file
+java -jar sql-validator.jar --scan . --recursive --runtime-validate --config /path/to/config.properties
 ```
 
 ## 📖 Example Output
@@ -120,9 +131,12 @@ sql-validator-tool/
 │   ├── validator/                     # Validation logic
 │   │   ├── SyntaxValidator.java       # Syntax error detection
 │   │   ├── EnhancedSQLRewriter.java   # SQL rewriting engine
-│   │   └── MultiDatabaseValidator.java # Multi-DB validation
+│   │   ├── MultiDatabaseValidator.java # Multi-DB validation
+│   │   └── RuntimeValidator.java      # Runtime query execution (NEW!)
 │   └── reporter/                      # Output formatting
 │       └── ConsoleReporter.java
+├── config/
+│   └── db-config.properties.example   # Database configuration template
 ├── lib/
 │   └── jsqlparser-4.6.jar            # SQL parsing library
 ├── javaparser-core-3.25.5.jar        # JavaParser library
@@ -259,26 +273,128 @@ String sql = buildComplexQuery(params);
 | `ROWNUM <= n` | `ROW_NUMBER() <= n` |
 | `FETCH FIRST n ROWS ONLY` | `ROW_NUMBER() <= n` |
 
+## 🔄 Runtime Validation
+
+### Overview
+Runtime validation executes SELECT queries on actual databases and compares result counts to verify consistency across DB2, PostgreSQL, and Oracle.
+
+### Configuration
+
+1. **Copy the example configuration:**
+```bash
+cp config/db-config.properties.example config/db-config.properties
+```
+
+2. **Edit `config/db-config.properties`:**
+```properties
+# Enable runtime validation
+runtime.validation.enabled=true
+
+# DB2 Configuration
+db2.url=jdbc:db2://localhost:50000/testdb
+db2.username=db2admin
+db2.password=your_password
+
+# PostgreSQL Configuration
+postgres.url=jdbc:postgresql://localhost:5432/testdb
+postgres.username=postgres
+postgres.password=your_password
+
+# Oracle Configuration
+oracle.url=jdbc:oracle:thin:@localhost:1521:testdb
+oracle.username=system
+oracle.password=your_password
+```
+
+3. **Download JDBC Drivers** (if not already present):
+   - DB2: `db2jcc4.jar`
+   - PostgreSQL: `postgresql-42.x.x.jar`
+   - Oracle: `ojdbc8.jar`
+
+### Usage
+
+```bash
+# Run with runtime validation
+java -jar sql-validator.jar --scan path/to/directory --recursive --runtime-validate
+```
+
+### Output Example
+
+```
+🔄 Runtime Validation Results (Actual Database Execution)
+
+┌─────────────┬──────────┬────────────┬─────────────────────────┐
+│ Database    │ Status   │ Row Count  │ Execution Time          │
+├─────────────┼──────────┼────────────┼─────────────────────────┤
+│ DB2         │ ✅ OK    │ 150        │ 45 ms                   │
+│ PostgreSQL  │ ✅ OK    │ 150        │ 38 ms                   │
+│ Oracle      │ ✅ OK    │ 150        │ 52 ms                   │
+└─────────────┴──────────┴────────────┴─────────────────────────┘
+
+✅ CONSISTENT: All databases returned 150 rows
+   The query produces identical results across all databases
+```
+
+### 🛡️ Multi-Layer Safety Protection
+
+Runtime validation has **two layers of safety** to ensure INSERT/UPDATE/DELETE queries are **NEVER executed**:
+
+#### Layer 1: Query Type Filter
+- ✅ Filters queries at application level before execution
+- ✅ Only processes queries marked as "SELECT"
+- ✅ Automatically skips INSERT, UPDATE, DELETE, DROP, TRUNCATE, etc.
+- ✅ Reports how many queries were skipped
+
+#### Layer 2: SQL Keyword Scanner
+- ✅ Double-checks at execution level
+- ✅ Verifies query starts with "SELECT"
+- ✅ Scans entire query for dangerous keywords
+- ✅ Blocks nested dangerous queries like `SELECT * FROM (DELETE ...)`
+
+**Blocked Keywords:**
+`INSERT`, `UPDATE`, `DELETE`, `DROP`, `TRUNCATE`, `ALTER`, `CREATE`, `GRANT`, `REVOKE`, `EXEC`, `EXECUTE`, `CALL`, `MERGE`
+
+**Example Output:**
+```
+🔄 Performing runtime validation...
+   ⚠️  SAFETY: Only SELECT queries will be executed
+   ⚠️  INSERT/UPDATE/DELETE queries are automatically skipped
+
+✓ Runtime validation complete
+   ✅ Tested: 15 SELECT queries
+   ⚠️  Skipped: 8 non-SELECT queries (INSERT/UPDATE/DELETE/etc.)
+   💡 Non-SELECT queries are never executed for safety
+```
+
+**Additional Safety:**
+- **Timeout protection**: Queries timeout after 30 seconds
+- **Error handling**: Database errors are caught and reported
+- **No transactions**: Each query is independent
+- **Read-only recommended**: Use database accounts with SELECT-only permissions
+
 ## ⚠️ Limitations
 
 ### What It DOES ✅
 - Extract SQL from Java source code (AST-based)
 - Detect SQL syntax errors
-- Validate database compatibility
+- Validate database compatibility (static analysis)
+- Execute SELECT queries on actual databases (runtime validation)
+- Compare result counts across databases
 - Generate database-agnostic rewrites
 - Handle unlimited issues per query
-- Work without database connections
+- Work without database connections (static mode)
 - Achieve 100% accuracy on production code
 
 ### What It DOES NOT ❌
 - Extract SQL from external files
 - Extract SQL from runtime configurations
 - Resolve complex dynamic SQL logic
-- Validate table/column existence (requires database)
+- Validate table/column existence (static mode)
+- Execute INSERT/UPDATE/DELETE queries (safety)
+- Compare actual data content (only row counts)
 - Check data type mismatches (requires schema)
 - Verify permissions (requires runtime)
 - Fix business logic errors
-- Execute queries
 
 ## 🎓 Use Cases
 

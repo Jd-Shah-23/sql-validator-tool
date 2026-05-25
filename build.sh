@@ -67,7 +67,15 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# Step 6: Compile MultiDatabaseValidator (depends on SQLQuery, ValidationResult, SyntaxValidator, EnhancedSQLRewriter)
+# Step 6: Compile RuntimeValidator (depends on SQLQuery)
+echo "  Compiling RuntimeValidator..."
+javac -d bin -cp bin src/validator/RuntimeValidator.java
+if [ $? -ne 0 ]; then
+    echo "❌ Compilation failed at RuntimeValidator!"
+    exit 1
+fi
+
+# Step 7: Compile MultiDatabaseValidator (depends on SQLQuery, ValidationResult, SyntaxValidator, EnhancedSQLRewriter)
 echo "  Compiling MultiDatabaseValidator..."
 javac -d bin -cp bin:lib/jsqlparser-4.6.jar src/validator/MultiDatabaseValidator.java
 if [ $? -ne 0 ]; then
@@ -75,7 +83,7 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# Step 7: Compile ConsoleReporter (depends on SQLQuery, ValidationResult, EnhancedSQLRewriter)
+# Step 8: Compile ConsoleReporter (depends on SQLQuery, ValidationResult, EnhancedSQLRewriter, RuntimeValidator)
 echo "  Compiling ConsoleReporter..."
 javac -d bin -cp bin:lib/jsqlparser-4.6.jar src/reporter/ConsoleReporter.java
 if [ $? -ne 0 ]; then
@@ -83,7 +91,7 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# Step 8: Compile SQLValidatorMain (depends on all above)
+# Step 9: Compile SQLValidatorMain (depends on all above)
 echo "  Compiling SQLValidatorMain..."
 javac -d bin -cp bin:lib/jsqlparser-4.6.jar src/SQLValidatorMain.java
 if [ $? -ne 0 ]; then
@@ -138,10 +146,14 @@ if [ $? -eq 0 ]; then
     echo "✅ Build successful!"
     echo ""
     echo "📋 Usage:"
+    echo "  # Static analysis only:"
     echo "  java -jar sql-validator.jar --scan <directory> --recursive"
     echo ""
+    echo "  # With runtime validation:"
+    echo "  java -jar sql-validator.jar --scan <directory> --recursive --runtime-validate"
+    echo ""
     echo "Example:"
-    echo "  java -jar sql-validator.jar --scan ../asset-investment-planning/AssetInvestPlan/applications/maximo/businessobjects/src/psdi/app/plusaip --recursive"
+    echo "  java -jar sql-validator.jar --scan ../asset-investment-planning/AssetInvestPlan/applications/maximo/businessobjects/src/psdi/app/plusaip --recursive --runtime-validate"
     echo ""
 else
     echo "❌ JAR test failed!"

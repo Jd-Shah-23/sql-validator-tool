@@ -2,6 +2,7 @@ package com.ibm.aip.validator.extractor;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Represents a SQL query extracted from Java source code
@@ -18,6 +19,7 @@ public class SQLQuery {
     private List<ValidationResult> validationResults = new ArrayList<>();
     private boolean hasSyntaxError = false;
     private List<String> syntaxErrors = new ArrayList<>();
+    private Map<String, Object> runtimeResults = null;
     
     // Getters and Setters
     public String getFileName() {
@@ -129,6 +131,14 @@ public class SQLQuery {
             if (result.isValid()) validCount++;
         }
         return (validCount * 100) / validationResults.size();
+    }
+    
+    public Map<String, Object> getRuntimeResults() {
+        return runtimeResults;
+    }
+    
+    public void setRuntimeResults(Map<String, ?> runtimeResults) {
+        this.runtimeResults = (Map<String, Object>) runtimeResults;
     }
     
     @Override
