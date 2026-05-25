@@ -4,6 +4,9 @@ import com.ibm.aip.validator.extractor.SQLQuery;
 import com.ibm.aip.validator.extractor.ValidationResult;
 import com.ibm.aip.validator.validator.MultiDatabaseValidator;
 import com.ibm.aip.validator.validator.RuntimeValidator.RuntimeResult;
+import com.ibm.aip.validator.analyzer.IndexRecommendationAnalyzer;
+import com.ibm.aip.validator.analyzer.IndexRecommendationAnalyzer.IndexRecommendation;
+import com.ibm.aip.validator.analyzer.IndexRecommendationAnalyzer.Recommendation;
 
 import java.util.List;
 import java.util.Map;
@@ -11,8 +14,8 @@ import java.util.HashMap;
 
 /**
  * Console reporter for SQL validation results
- * 
- * @author AIP Innovation Team
+ *
+ * @author Jaydeep Shah
  */
 public class ConsoleReporter {
     
@@ -20,9 +23,6 @@ public class ConsoleReporter {
     private static final String DOUBLE_SEPARATOR = "═".repeat(65);
     private MultiDatabaseValidator validator;
     
-    /**
-     * Constructor
-     */
     public ConsoleReporter(MultiDatabaseValidator validator) {
         this.validator = validator;
     }
@@ -177,6 +177,11 @@ public class ConsoleReporter {
             System.out.println("   Please fix the syntax errors first, then re-run the validator");
         }
         
+        // Print index recommendations for SELECT queries
+        if ("SELECT".equalsIgnoreCase(query.getQueryType()) && !query.hasSyntaxError()) {
+            printIndexRecommendations(query);
+        }
+        
         // Print runtime validation results if available
         if (runtimeResults != null && !runtimeResults.isEmpty()) {
             printRuntimeValidationResults(runtimeResults);
@@ -185,6 +190,71 @@ public class ConsoleReporter {
         System.out.println();
         System.out.println(SEPARATOR);
         System.out.println();
+    }
+    
+    /**
+     * Print index recommendations for query optimization
+     */
+    private void printIndexRecommendations(SQLQuery query) {
+        IndexRecommendationAnalyzer analyzer = new IndexRecommendationAnalyzer();
+        IndexRecommendation recommendation = analyzer.analyzeQuery(query.getNormalizedQuery());
+        
+        if (recommendation.hasError()) {
+            // Silently skip if analysis fails - not critical
+            return;
+        }
+        
+        if (!recommendation.hasRecommendations()) {
+            // No recommendations needed
+            return;
+        }
+        
+        System.out.println();
+        System.out.println("╔═══════════════════════════════════════════════════════════════╗");
+        System.out.println("║  📊 Index Recommendations for Performance Optimization       ║");
+        System.out.println("╚═══════════════════════════════════════════════════════════════╝");
+        System.out.println();
+        
+        if (recommendation.getTableName() != null) {
+            System.out.println("Table: " + recommendation.getTableName());
+            System.out.println();
+        }
+        
+        System.out.println("┌──────────┬─────────────────┬──────────────────────────────────┐");
+        System.out.println("│ Priority │ Index Type      │ Columns                          │");
+        System.out.println("├──────────┼─────────────────┼──────────────────────────────────┤");
+        
+        for (Recommendation rec : recommendation.getRecommendations()) {
+            String priority = String.format("%-8s", rec.getPriorityIcon() + " " + rec.getPriority());
+            String type = String.format("%-15s", rec.getType());
+            String columns = rec.getColumnsAsString();
+            
+            if (columns.length() > 32) {
+                columns = columns.substring(0, 29) + "...";
+            }
+            columns = String.format("%-32s", columns);
+            
+            System.out.println(String.format("│ %s │ %s │ %s │",
+                priority, type, columns));
+        }
+        
+        System.out.println("└──────────┴─────────────────┴──────────────────────────────────┘");
+        System.out.println();
+        
+        // Print detailed recommendations
+        System.out.println("💡 Recommended Actions:");
+        int count = 1;
+        for (Recommendation rec : recommendation.getRecommendations()) {
+            System.out.println(String.format("   %d. CREATE INDEX idx_%s_%s ON %s (%s);",
+                count++,
+                recommendation.getTableName() != null ? recommendation.getTableName().toLowerCase() : "table",
+                String.join("_", rec.getColumns()).toLowerCase(),
+                recommendation.getTableName() != null ? recommendation.getTableName() : "TABLE_NAME",
+                rec.getColumnsAsString()
+            ));
+            System.out.println("      Reason: " + rec.getReason());
+            System.out.println();
+        }
     }
     
     /**

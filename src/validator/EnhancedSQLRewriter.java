@@ -15,8 +15,10 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Enhanced SQL Rewriter using JSqlParser for robust multi-issue handling
- * Handles queries with multiple database-specific syntax issues
+ * SQL Rewriter using JSqlParser for multi-issue handling.
+ * Handles queries with multiple database-specific syntax issues.
+ *
+ * @author Jaydeep Shah
  */
 public class EnhancedSQLRewriter {
     

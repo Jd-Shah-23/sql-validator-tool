@@ -10,10 +10,10 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Extracts SQL queries from Java source files
- * Handles various SQL patterns including string concatenation and StringBuilder
- * 
- * @author AIP Innovation Team
+ * Extracts SQL queries from Java source files.
+ * Handles string concatenation and StringBuilder patterns.
+ *
+ * @author Jaydeep Shah
  */
 public class JavaSQLExtractor {
     

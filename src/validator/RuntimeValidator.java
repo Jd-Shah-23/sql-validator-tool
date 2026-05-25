@@ -5,10 +5,10 @@ import java.sql.*;
 import java.util.*;
 
 /**
- * Runtime validator that executes SELECT queries on actual databases
- * and compares result counts across DB2, PostgreSQL, and Oracle
- * 
- * @author AIP Innovation Team
+ * Executes SELECT queries on actual databases and compares result counts
+ * across DB2, PostgreSQL, and Oracle.
+ *
+ * @author Jaydeep Shah
  */
 public class RuntimeValidator {
     

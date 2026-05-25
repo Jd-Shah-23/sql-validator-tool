@@ -9,13 +9,15 @@ import java.util.List;
 import java.util.regex.Pattern;
 
 /**
- * Validates SQL syntax without requiring database connection
- * Uses JSqlParser to detect syntax errors before runtime
+ * Validates SQL syntax without database connection.
+ * Uses JSqlParser to detect syntax errors.
+ *
+ * @author Jaydeep Shah
  */
 public class SyntaxValidator {
     
     /**
-     * Validate SQL syntax and return detailed error information
+     * Validates SQL syntax and returns error information
      */
     public SyntaxValidationResult validateSyntax(String sql) {
         SyntaxValidationResult result = new SyntaxValidationResult();

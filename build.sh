@@ -67,6 +67,14 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
+# Step 5b: Compile IndexRecommendationAnalyzer (depends on JSqlParser)
+echo "  Compiling IndexRecommendationAnalyzer..."
+javac -d bin -cp bin:lib/jsqlparser-4.6.jar src/analyzer/IndexRecommendationAnalyzer.java
+if [ $? -ne 0 ]; then
+    echo "❌ Compilation failed at IndexRecommendationAnalyzer!"
+    exit 1
+fi
+
 # Step 6: Compile RuntimeValidator (depends on SQLQuery)
 echo "  Compiling RuntimeValidator..."
 javac -d bin -cp bin src/validator/RuntimeValidator.java

@@ -12,8 +12,10 @@ import java.util.*;
 import java.util.regex.Pattern;
 
 /**
- * Enhanced SQL extractor using JavaParser library for accurate AST-based extraction.
- * Handles multi-line string concatenations, StringBuilder patterns, and complex expressions.
+ * SQL extractor using JavaParser for AST-based extraction.
+ * Handles multi-line concatenations, StringBuilder, and complex expressions.
+ *
+ * @author Jaydeep Shah
  */
 public class JavaParserSQLExtractor {
     
@@ -23,7 +25,7 @@ public class JavaParserSQLExtractor {
     );
     
     /**
-     * Extract SQL queries from a Java file using JavaParser AST analysis
+     * Extracts SQL queries from Java file using AST analysis
      */
     public static List<SQLQuery> extractFromFile(File file) {
         List<SQLQuery> queries = new ArrayList<>();

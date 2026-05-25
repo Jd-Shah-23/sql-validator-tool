@@ -17,9 +17,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Multi-database SQL validator that checks compatibility across DB2, PostgreSQL, and Oracle
- * 
- * @author AIP Innovation Team
+ * Validates SQL compatibility across DB2, PostgreSQL, and Oracle
+ *
+ * @author Jaydeep Shah
  */
 public class MultiDatabaseValidator {
     

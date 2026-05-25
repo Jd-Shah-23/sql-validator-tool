@@ -7,7 +7,7 @@ import java.util.Map;
 /**
  * Represents a SQL query extracted from Java source code
  *
- * @author AIP Innovation Team
+ * @author Jaydeep Shah
  */
 public class SQLQuery {
     private String fileName;

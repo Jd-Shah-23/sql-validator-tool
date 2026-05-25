@@ -17,12 +17,12 @@ import java.util.Properties;
 
 /**
  * Main entry point for Multi-Database SQL Validator
- * 
+ *
  * Usage:
  *   java SQLValidatorMain --scan <directory> [--recursive] [--runtime-validate] [--config <file>]
  *   java SQLValidatorMain --file <java-file> [--runtime-validate] [--config <file>]
- * 
- * @author AIP Innovation Team
+ *
+ * @author Jaydeep Shah
  */
 public class SQLValidatorMain {
     

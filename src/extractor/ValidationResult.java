@@ -5,8 +5,8 @@ import java.util.List;
 
 /**
  * Represents validation result for a specific database
- * 
- * @author AIP Innovation Team
+ *
+ * @author Jaydeep Shah
  */
 public class ValidationResult {
     private String databaseType; // DB2, PostgreSQL, Oracle
