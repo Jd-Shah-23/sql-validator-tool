@@ -1,0 +1,31 @@
+# Multi-Database SQL Validator Configuration
+# Copy this file to db-config.properties and update with your database credentials
+
+# DB2 Configuration
+db2.url=jdbc:db2://localhost:50000/MAXDB
+db2.username=maximo
+db2.password=your_password_here
+db2.driver=com.ibm.db2.jcc.DB2Driver
+
+# PostgreSQL Configuration
+postgresql.url=jdbc:postgresql://localhost:5432/maxdb
+postgresql.username=maximo
+postgresql.password=your_password_here
+postgresql.driver=org.postgresql.Driver
+
+# Oracle Configuration
+oracle.url=jdbc:oracle:thin:@localhost:1521:ORCL
+oracle.username=maximo
+oracle.password=your_password_here
+oracle.driver=oracle.jdbc.OracleDriver
+
+# Validation Settings
+validation.timeout=30
+validation.maxRetries=3
+validation.strictMode=false
+
+# Reporting Settings
+report.format=console
+report.outputDir=./reports
+report.includePassedQueries=true
+report.detailedErrors=true

@@ -1,0 +1,40 @@
+# Compiled class files
+*.class
+bin/
+
+# JAR files (keep the library JARs, ignore built artifacts)
+sql-validator.jar
+
+# IDE files
+.idea/
+.vscode/
+*.iml
+.project
+.classpath
+.settings/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+target/
+build/
+dist/
+
+# Reports
+reports/*.html
+reports/*.json
+reports/*.txt
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+*~
+
+# Test files
+Test*.class
+test-*.java
+
+# Made with Bob

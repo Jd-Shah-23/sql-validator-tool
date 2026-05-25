@@ -1,0 +1,4 @@
+Manifest-Version: 1.0
+Main-Class: com.ibm.aip.validator.SQLValidatorMain
+Class-Path: lib/jsqlparser-4.6.jar
+
