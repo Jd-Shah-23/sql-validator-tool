@@ -12,6 +12,7 @@ Validates SQL queries across DB2, PostgreSQL, and Oracle. Extracts SQL from Java
 - Generate database-agnostic SQL rewrites
 - Runtime validation on actual databases
 - Index recommendations for performance
+- **HTML reports with charts and visualizations**
 
 ## Quick Start
 
@@ -27,6 +28,18 @@ java -jar sql-validator.jar --scan /path/to/code --recursive
 
 # With runtime validation (needs database)
 java -jar sql-validator.jar --scan /path/to/code --recursive --runtime-validate --config config/db-config.properties
+
+# Generate HTML report (saved in current directory)
+java -jar sql-validator.jar --scan /path/to/code --recursive --html-report validation-report.html
+```
+
+**Note:** The HTML report is generated in the directory where you run the command. You can specify any path:
+```bash
+# Save to reports directory
+java -jar sql-validator.jar --scan /path/to/code --recursive --html-report reports/my-report.html
+
+# Save to absolute path
+java -jar sql-validator.jar --scan /path/to/code --recursive --html-report /Users/username/Documents/report.html
 ```
 
 ## Configuration

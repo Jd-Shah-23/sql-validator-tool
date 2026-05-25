@@ -99,6 +99,14 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
+# Step 8b: Compile HTMLReporter (depends on SQLQuery, ValidationResult, IndexRecommendationAnalyzer)
+echo "  Compiling HTMLReporter..."
+javac -d bin -cp bin:lib/jsqlparser-4.6.jar src/reporter/HTMLReporter.java
+if [ $? -ne 0 ]; then
+    echo "❌ Compilation failed at HTMLReporter!"
+    exit 1
+fi
+
 # Step 9: Compile SQLValidatorMain (depends on all above)
 echo "  Compiling SQLValidatorMain..."
 javac -d bin -cp bin:lib/jsqlparser-4.6.jar src/SQLValidatorMain.java
@@ -159,6 +167,9 @@ if [ $? -eq 0 ]; then
     echo ""
     echo "  # With runtime validation:"
     echo "  java -jar sql-validator.jar --scan <directory> --recursive --runtime-validate"
+    echo ""
+    echo "  # Generate HTML report:"
+    echo "  java -jar sql-validator.jar --scan <directory> --recursive --html-report report.html"
     echo ""
     echo "Example:"
     echo "  java -jar sql-validator.jar --scan ../asset-investment-planning/AssetInvestPlan/applications/maximo/businessobjects/src/psdi/app/plusaip --recursive --runtime-validate"

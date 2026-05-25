@@ -35,42 +35,119 @@ public class IndexRecommendationAnalyzer {
             
             if (statement instanceof Select) {
                 Select selectStatement = (Select) statement;
-                PlainSelect plainSelect = (PlainSelect) selectStatement.getSelectBody();
+                SelectBody selectBody = selectStatement.getSelectBody();
                 
-                // Extract table name
-                if (plainSelect.getFromItem() instanceof Table) {
-                    Table table = (Table) plainSelect.getFromItem();
-                    recommendation.setTableName(table.getName());
-                }
-                
-                // Analyze WHERE clause
-                if (plainSelect.getWhere() != null) {
-                    analyzeWhereClause(plainSelect.getWhere(), recommendation);
-                }
-                
-                // Analyze JOIN conditions
-                if (plainSelect.getJoins() != null) {
-                    for (Join join : plainSelect.getJoins()) {
-                        if (join.getOnExpression() != null) {
-                            analyzeJoinCondition(join, recommendation);
+                // Handle both PlainSelect and SetOperationList (UNION, etc.)
+                if (selectBody instanceof PlainSelect) {
+                    PlainSelect plainSelect = (PlainSelect) selectBody;
+                    analyzePlainSelect(plainSelect, recommendation);
+                } else if (selectBody instanceof SetOperationList) {
+                    // For UNION queries, analyze each SELECT separately
+                    SetOperationList setOpList = (SetOperationList) selectBody;
+                    for (SelectBody body : setOpList.getSelects()) {
+                        if (body instanceof PlainSelect) {
+                            analyzePlainSelect((PlainSelect) body, recommendation);
                         }
                     }
                 }
                 
-                // Analyze ORDER BY clause
-                if (plainSelect.getOrderByElements() != null) {
-                    analyzeOrderBy(plainSelect.getOrderByElements(), recommendation);
+                // Generate recommendations only if we found some columns
+                if (!recommendation.getWhereColumns().isEmpty() ||
+                    !recommendation.getJoinColumns().isEmpty() ||
+                    !recommendation.getOrderByColumns().isEmpty()) {
+                    generateRecommendations(recommendation);
                 }
-                
-                // Generate recommendations
-                generateRecommendations(recommendation);
             }
             
         } catch (JSQLParserException e) {
-            recommendation.setError("Could not parse query for index analysis: " + e.getMessage());
+            // Try to extract basic information even if full parsing fails
+            tryBasicAnalysis(sql, recommendation);
+        } catch (ClassCastException e) {
+            recommendation.setError("Complex query structure - manual index analysis recommended");
+        } catch (Exception e) {
+            recommendation.setError("Error analyzing query: " + e.getMessage());
         }
         
         return recommendation;
+    }
+    
+    /**
+     * Try basic analysis when JSqlParser fails
+     */
+    private void tryBasicAnalysis(String sql, IndexRecommendation recommendation) {
+        try {
+            // Extract table name from FROM clause
+            String upperSql = sql.toUpperCase();
+            int fromIndex = upperSql.indexOf(" FROM ");
+            if (fromIndex > 0) {
+                int endIndex = upperSql.indexOf(" ", fromIndex + 6);
+                if (endIndex < 0) endIndex = upperSql.indexOf(",", fromIndex + 6);
+                if (endIndex < 0) endIndex = upperSql.indexOf("WHERE", fromIndex + 6);
+                if (endIndex < 0) endIndex = upperSql.indexOf("JOIN", fromIndex + 6);
+                if (endIndex < 0) endIndex = sql.length();
+                
+                if (endIndex > fromIndex + 6) {
+                    String tableName = sql.substring(fromIndex + 6, endIndex).trim();
+                    if (!tableName.isEmpty()) {
+                        recommendation.setTableName(tableName);
+                    }
+                }
+            }
+            
+            // Extract columns from WHERE clause using regex
+            int whereIndex = upperSql.indexOf(" WHERE ");
+            if (whereIndex > 0 && whereIndex + 7 < sql.length()) {
+                String whereClause = sql.substring(whereIndex + 7);
+                // Simple pattern to find column names (word before = or IN or LIKE)
+                java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("([A-Z_][A-Z0-9_]*)\\s*(?:=|IN|LIKE|>|<|>=|<=)");
+                java.util.regex.Matcher matcher = pattern.matcher(whereClause.toUpperCase());
+                while (matcher.find()) {
+                    String column = matcher.group(1);
+                    if (!column.equals("SELECT") && !column.equals("FROM") && !column.equals("WHERE")) {
+                        recommendation.addWhereColumn(column);
+                    }
+                }
+            }
+            
+            // If we found columns, generate recommendations
+            if (!recommendation.getWhereColumns().isEmpty()) {
+                generateRecommendations(recommendation);
+            } else {
+                recommendation.setError("Complex query - manual index analysis recommended");
+            }
+        } catch (Exception e) {
+            recommendation.setError("Could not analyze query structure: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Analyze a PlainSelect statement
+     */
+    private void analyzePlainSelect(PlainSelect plainSelect, IndexRecommendation recommendation) {
+        // Extract table name
+        if (plainSelect.getFromItem() instanceof Table) {
+            Table table = (Table) plainSelect.getFromItem();
+            recommendation.setTableName(table.getName());
+        }
+        
+        // Analyze WHERE clause
+        if (plainSelect.getWhere() != null) {
+            analyzeWhereClause(plainSelect.getWhere(), recommendation);
+        }
+        
+        // Analyze JOIN conditions
+        if (plainSelect.getJoins() != null) {
+            for (Join join : plainSelect.getJoins()) {
+                if (join.getOnExpression() != null) {
+                    analyzeJoinCondition(join, recommendation);
+                }
+            }
+        }
+        
+        // Analyze ORDER BY clause
+        if (plainSelect.getOrderByElements() != null) {
+            analyzeOrderBy(plainSelect.getOrderByElements(), recommendation);
+        }
     }
     
     /**
@@ -92,7 +169,7 @@ public class IndexRecommendationAnalyzer {
                 recommendation.addWhereColumn(col.getColumnName());
             }
             
-            // Recursively analyze AND/OR expressions
+            // Recursively analyze compound expressions
             if (binary instanceof AndExpression || binary instanceof OrExpression) {
                 analyzeWhereClause(binary.getLeftExpression(), recommendation);
                 analyzeWhereClause(binary.getRightExpression(), recommendation);
@@ -109,6 +186,20 @@ public class IndexRecommendationAnalyzer {
                 Column col = (Column) between.getLeftExpression();
                 recommendation.addWhereColumn(col.getColumnName());
             }
+        } else if (where instanceof AndExpression) {
+            // Handle nested AND expressions
+            AndExpression and = (AndExpression) where;
+            analyzeWhereClause(and.getLeftExpression(), recommendation);
+            analyzeWhereClause(and.getRightExpression(), recommendation);
+        } else if (where instanceof OrExpression) {
+            // Handle nested OR expressions
+            OrExpression or = (OrExpression) where;
+            analyzeWhereClause(or.getLeftExpression(), recommendation);
+            analyzeWhereClause(or.getRightExpression(), recommendation);
+        } else if (where instanceof Parenthesis) {
+            // Handle parenthesized expressions
+            Parenthesis paren = (Parenthesis) where;
+            analyzeWhereClause(paren.getExpression(), recommendation);
         }
     }
     

@@ -7,6 +7,7 @@ import com.ibm.aip.validator.validator.MultiDatabaseValidator;
 import com.ibm.aip.validator.validator.RuntimeValidator;
 import com.ibm.aip.validator.validator.RuntimeValidator.RuntimeResult;
 import com.ibm.aip.validator.reporter.ConsoleReporter;
+import com.ibm.aip.validator.reporter.HTMLReporter;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -204,9 +205,21 @@ public class SQLValidatorMain {
                 runtimeValidator.disconnect();
             }
             
-            // Generate report
+            // Generate console report
             ConsoleReporter reporter = new ConsoleReporter(validator);
             reporter.generateReport(queries);
+            
+            // Generate HTML report if requested
+            if (cmdArgs.htmlReportPath != null) {
+                System.out.println("\n📊 Generating HTML report...");
+                try {
+                    HTMLReporter htmlReporter = new HTMLReporter(queries, cmdArgs.htmlReportPath);
+                    htmlReporter.generateReport();
+                    System.out.println("✅ HTML report generated: " + cmdArgs.htmlReportPath);
+                } catch (IOException e) {
+                    System.err.println("❌ Failed to generate HTML report: " + e.getMessage());
+                }
+            }
             
             // Exit with appropriate code
             boolean hasErrors = queries.stream()
@@ -268,6 +281,13 @@ public class SQLValidatorMain {
                     }
                     break;
                     
+                case "--html-report":
+                case "--html":
+                    if (i + 1 < args.length) {
+                        cmdArgs.htmlReportPath = args[++i];
+                    }
+                    break;
+                    
                 default:
                     System.err.println("⚠️  Unknown argument: " + args[i]);
             }
@@ -305,6 +325,7 @@ public class SQLValidatorMain {
         System.out.println("  --runtime-validate     Execute queries on actual databases");
         System.out.println("  --config <file>        Database configuration file");
         System.out.println("                         (default: sql-validator-tool/config/db-config.properties)");
+        System.out.println("  --html-report <file>   Generate HTML report with charts");
         System.out.println("  --help, -h             Show this help message");
         System.out.println();
         System.out.println("Examples:");
@@ -316,6 +337,9 @@ public class SQLValidatorMain {
         System.out.println();
         System.out.println("  # Analyze specific file with runtime validation");
         System.out.println("  java SQLValidatorMain --file PlusAipScenario.java --runtime-validate");
+        System.out.println();
+        System.out.println("  # Generate HTML report with charts");
+        System.out.println("  java SQLValidatorMain --scan /path/to/java/files --html-report report.html");
         System.out.println();
         System.out.println();
         System.out.println("Note:");
@@ -334,6 +358,7 @@ public class SQLValidatorMain {
         boolean recursive = false;
         boolean runtimeValidate = false;
         String configFile = null;
+        String htmlReportPath = null;
         boolean showHelp = false;
     }
 }

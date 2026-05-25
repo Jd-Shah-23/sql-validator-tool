@@ -216,12 +216,16 @@ public class ConsoleReporter {
             IndexRecommendation recommendation = analyzer.analyzeQuery(query.getNormalizedQuery());
             
             if (recommendation.hasError()) {
-                // Silently skip if analysis fails - not critical
+                // Show error for debugging
+                System.out.println();
+                System.out.println("⚠️  Index Analysis: " + recommendation.getError());
                 return;
             }
             
             if (!recommendation.hasRecommendations()) {
-                // No recommendations needed
+                // Show message that query is already optimized
+                System.out.println();
+                System.out.println("✅ Index Analysis: Query appears well-optimized or uses simple filtering");
                 return;
             }
             
