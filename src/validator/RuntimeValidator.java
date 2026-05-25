@@ -141,7 +141,6 @@ public class RuntimeValidator {
                 return result;
             }
         }
-        }
         
         long startTime = System.currentTimeMillis();
         

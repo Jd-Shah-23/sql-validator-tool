@@ -43,7 +43,13 @@ public class ConsoleReporter {
         for (SQLQuery query : queries) {
             Map<String, RuntimeResult> runtimeResults = null;
             if (query.getRuntimeResults() != null) {
-                runtimeResults = (Map<String, RuntimeResult>) query.getRuntimeResults();
+                Map<String, Object> rawResults = query.getRuntimeResults();
+                runtimeResults = new HashMap<>();
+                for (Map.Entry<String, Object> entry : rawResults.entrySet()) {
+                    if (entry.getValue() instanceof RuntimeResult) {
+                        runtimeResults.put(entry.getKey(), (RuntimeResult) entry.getValue());
+                    }
+                }
             }
             printQueryReport(query, runtimeResults);
             
@@ -178,7 +184,16 @@ public class ConsoleReporter {
         }
         
         // Print index recommendations for SELECT queries
-        if ("SELECT".equalsIgnoreCase(query.getQueryType()) && !query.hasSyntaxError()) {
+        // Detect query type from normalized query if not set
+        String queryType = query.getQueryType();
+        if (queryType == null && query.getNormalizedQuery() != null) {
+            String normalized = query.getNormalizedQuery().trim().toUpperCase();
+            if (normalized.startsWith("SELECT")) {
+                queryType = "SELECT";
+            }
+        }
+        
+        if ("SELECT".equalsIgnoreCase(queryType) && !query.hasSyntaxError()) {
             printIndexRecommendations(query);
         }
         
@@ -196,64 +211,70 @@ public class ConsoleReporter {
      * Print index recommendations for query optimization
      */
     private void printIndexRecommendations(SQLQuery query) {
-        IndexRecommendationAnalyzer analyzer = new IndexRecommendationAnalyzer();
-        IndexRecommendation recommendation = analyzer.analyzeQuery(query.getNormalizedQuery());
-        
-        if (recommendation.hasError()) {
-            // Silently skip if analysis fails - not critical
-            return;
-        }
-        
-        if (!recommendation.hasRecommendations()) {
-            // No recommendations needed
-            return;
-        }
-        
-        System.out.println();
-        System.out.println("╔═══════════════════════════════════════════════════════════════╗");
-        System.out.println("║  📊 Index Recommendations for Performance Optimization       ║");
-        System.out.println("╚═══════════════════════════════════════════════════════════════╝");
-        System.out.println();
-        
-        if (recommendation.getTableName() != null) {
-            System.out.println("Table: " + recommendation.getTableName());
-            System.out.println();
-        }
-        
-        System.out.println("┌──────────┬─────────────────┬──────────────────────────────────┐");
-        System.out.println("│ Priority │ Index Type      │ Columns                          │");
-        System.out.println("├──────────┼─────────────────┼──────────────────────────────────┤");
-        
-        for (Recommendation rec : recommendation.getRecommendations()) {
-            String priority = String.format("%-8s", rec.getPriorityIcon() + " " + rec.getPriority());
-            String type = String.format("%-15s", rec.getType());
-            String columns = rec.getColumnsAsString();
+        try {
+            IndexRecommendationAnalyzer analyzer = new IndexRecommendationAnalyzer();
+            IndexRecommendation recommendation = analyzer.analyzeQuery(query.getNormalizedQuery());
             
-            if (columns.length() > 32) {
-                columns = columns.substring(0, 29) + "...";
+            if (recommendation.hasError()) {
+                // Silently skip if analysis fails - not critical
+                return;
             }
-            columns = String.format("%-32s", columns);
             
-            System.out.println(String.format("│ %s │ %s │ %s │",
-                priority, type, columns));
-        }
-        
-        System.out.println("└──────────┴─────────────────┴──────────────────────────────────┘");
-        System.out.println();
-        
-        // Print detailed recommendations
-        System.out.println("💡 Recommended Actions:");
-        int count = 1;
-        for (Recommendation rec : recommendation.getRecommendations()) {
-            System.out.println(String.format("   %d. CREATE INDEX idx_%s_%s ON %s (%s);",
-                count++,
-                recommendation.getTableName() != null ? recommendation.getTableName().toLowerCase() : "table",
-                String.join("_", rec.getColumns()).toLowerCase(),
-                recommendation.getTableName() != null ? recommendation.getTableName() : "TABLE_NAME",
-                rec.getColumnsAsString()
-            ));
-            System.out.println("      Reason: " + rec.getReason());
+            if (!recommendation.hasRecommendations()) {
+                // No recommendations needed
+                return;
+            }
+            
             System.out.println();
+            System.out.println("╔═══════════════════════════════════════════════════════════════╗");
+            System.out.println("║  📊 Index Recommendations for Performance Optimization       ║");
+            System.out.println("╚═══════════════════════════════════════════════════════════════╝");
+            System.out.println();
+            
+            if (recommendation.getTableName() != null) {
+                System.out.println("Table: " + recommendation.getTableName());
+                System.out.println();
+            }
+            
+            System.out.println("┌──────────┬─────────────────┬──────────────────────────────────┐");
+            System.out.println("│ Priority │ Index Type      │ Columns                          │");
+            System.out.println("├──────────┼─────────────────┼──────────────────────────────────┤");
+            
+            for (Recommendation rec : recommendation.getRecommendations()) {
+                String priority = String.format("%-8s", rec.getPriorityIcon() + " " + rec.getPriority());
+                String type = String.format("%-15s", rec.getType());
+                String columns = rec.getColumnsAsString();
+                
+                if (columns.length() > 32) {
+                    columns = columns.substring(0, 29) + "...";
+                }
+                columns = String.format("%-32s", columns);
+                
+                System.out.println(String.format("│ %s │ %s │ %s │",
+                    priority, type, columns));
+            }
+            
+            System.out.println("└──────────┴─────────────────┴──────────────────────────────────┘");
+            System.out.println();
+            
+            // Print detailed recommendations
+            System.out.println("💡 Recommended Actions:");
+            int count = 1;
+            for (Recommendation rec : recommendation.getRecommendations()) {
+                System.out.println(String.format("   %d. CREATE INDEX idx_%s_%s ON %s (%s);",
+                    count++,
+                    recommendation.getTableName() != null ? recommendation.getTableName().toLowerCase() : "table",
+                    String.join("_", rec.getColumns()).toLowerCase(),
+                    recommendation.getTableName() != null ? recommendation.getTableName() : "TABLE_NAME",
+                    rec.getColumnsAsString()
+                ));
+                System.out.println("      Reason: " + rec.getReason());
+                System.out.println();
+            }
+        } catch (Exception e) {
+            // Silently skip if analysis fails - not critical
+            // Index recommendations are optional and shouldn't break the main flow
+            return;
         }
     }
     
@@ -274,11 +295,11 @@ public class ConsoleReporter {
         
         for (Map.Entry<String, RuntimeResult> entry : runtimeResults.entrySet()) {
             RuntimeResult result = entry.getValue();
-            if (result.isSuccess()) {
+            if (result.executed && result.error == null) {
                 if (referenceCount == null) {
-                    referenceCount = result.getRowCount();
+                    referenceCount = (long) result.rowCount;
                     referenceDb = entry.getKey();
-                } else if (!referenceCount.equals(result.getRowCount())) {
+                } else if (!referenceCount.equals((long) result.rowCount)) {
                     allConsistent = false;
                     break;
                 }
@@ -298,10 +319,10 @@ public class ConsoleReporter {
             String rowCount;
             String execTime;
             
-            if (result.isSuccess()) {
+            if (result.executed && result.error == null) {
                 status = String.format("%-8s", "✅ OK");
-                rowCount = String.format("%-10s", result.getRowCount());
-                execTime = String.format("%-23s", result.getExecutionTime() + " ms");
+                rowCount = String.format("%-10s", result.rowCount);
+                execTime = String.format("%-23s", result.executionTimeMs + " ms");
             } else {
                 status = String.format("%-8s", "❌ FAIL");
                 rowCount = String.format("%-10s", "N/A");
@@ -312,8 +333,8 @@ public class ConsoleReporter {
                 database, status, rowCount, execTime));
             
             // Print error message if any
-            if (!result.isSuccess() && result.getErrorMessage() != null) {
-                String errorMsg = result.getErrorMessage();
+            if (result.error != null) {
+                String errorMsg = result.error;
                 if (errorMsg.length() > 55) {
                     errorMsg = errorMsg.substring(0, 52) + "...";
                 }

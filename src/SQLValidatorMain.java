@@ -71,7 +71,39 @@ public class SQLValidatorMain {
                 runtimeValidator = new RuntimeValidator();
                 
                 try {
-                    runtimeValidator.connect(config);
+                    // Create DatabaseConfig objects from properties
+                    RuntimeValidator.DatabaseConfig db2Config = null;
+                    RuntimeValidator.DatabaseConfig postgresConfig = null;
+                    RuntimeValidator.DatabaseConfig oracleConfig = null;
+                    
+                    if ("true".equalsIgnoreCase(config.getProperty("db2.enabled", "false"))) {
+                        db2Config = new RuntimeValidator.DatabaseConfig(
+                            config.getProperty("db2.url"),
+                            config.getProperty("db2.username"),
+                            config.getProperty("db2.password"),
+                            config.getProperty("db2.driver")
+                        );
+                    }
+                    
+                    if ("true".equalsIgnoreCase(config.getProperty("postgres.enabled", "false"))) {
+                        postgresConfig = new RuntimeValidator.DatabaseConfig(
+                            config.getProperty("postgres.url"),
+                            config.getProperty("postgres.username"),
+                            config.getProperty("postgres.password"),
+                            config.getProperty("postgres.driver")
+                        );
+                    }
+                    
+                    if ("true".equalsIgnoreCase(config.getProperty("oracle.enabled", "false"))) {
+                        oracleConfig = new RuntimeValidator.DatabaseConfig(
+                            config.getProperty("oracle.url"),
+                            config.getProperty("oracle.username"),
+                            config.getProperty("oracle.password"),
+                            config.getProperty("oracle.driver")
+                        );
+                    }
+                    
+                    runtimeValidator.connect(db2Config, postgresConfig, oracleConfig);
                     System.out.println("✓ Connected to databases");
                 } catch (Exception e) {
                     System.err.println("❌ Error connecting to databases: " + e.getMessage());
