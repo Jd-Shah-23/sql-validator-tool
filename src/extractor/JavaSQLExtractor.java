@@ -65,6 +65,7 @@ public class JavaSQLExtractor {
     
     /**
      * Extract SQL from direct string literals
+     * Skip fragments that are part of StringBuilder construction
      */
     private List<SQLQuery> extractDirectSQL(String content, String fileName) {
         List<SQLQuery> queries = new ArrayList<>();
@@ -77,6 +78,16 @@ public class JavaSQLExtractor {
             Matcher sqlMatcher = SQL_PATTERN.matcher(stringContent);
             if (sqlMatcher.find()) {
                 int lineNumber = getLineNumber(content, stringMatcher.start());
+                
+                // Skip if this is part of a StringBuilder.append() call
+                int matchStart = stringMatcher.start();
+                int lineStart = content.lastIndexOf('\n', matchStart) + 1;
+                String lineContent = content.substring(lineStart, Math.min(matchStart + 100, content.length()));
+                
+                if (lineContent.contains(".append(")) {
+                    // This is part of StringBuilder, skip it
+                    continue;
+                }
                 
                 SQLQuery query = new SQLQuery();
                 query.setFileName(fileName);
@@ -94,6 +105,7 @@ public class JavaSQLExtractor {
     
     /**
      * Extract SQL from StringBuilder patterns
+     * Enhanced to look for .toString() usage to get complete SQL
      */
     private List<SQLQuery> extractStringBuilderSQL(String content, String fileName) {
         List<SQLQuery> queries = new ArrayList<>();
@@ -108,36 +120,113 @@ public class JavaSQLExtractor {
         while (sbMatcher.find()) {
             String varName = sbMatcher.group(1);
             int startPos = sbMatcher.end();
+            int lineNumber = getLineNumber(content, sbMatcher.start());
             
-            // Extract all append calls for this StringBuilder
-            StringBuilder sqlBuilder = new StringBuilder();
-            Pattern appendPattern = Pattern.compile(
-                varName + "\\.append\\s*\\(\\s*\"([^\"]+)\"\\s*\\);",
-                Pattern.DOTALL
+            // Look for where this StringBuilder is converted to String
+            // Patterns: varName.toString(), SqlFormat(varName.toString()), prepareStatement(varName.toString())
+            int searchEnd = Math.min(startPos + 10000, content.length());
+            String searchRegion = content.substring(startPos, searchEnd);
+            
+            // Find the .toString() call
+            Pattern toStringPattern = Pattern.compile(
+                varName + "\\.toString\\s*\\(\\s*\\)",
+                Pattern.CASE_INSENSITIVE
             );
             
-            Matcher appendMatcher = appendPattern.matcher(content.substring(startPos));
-            int lineNumber = getLineNumber(content, startPos);
-            
-            while (appendMatcher.find()) {
-                sqlBuilder.append(appendMatcher.group(1)).append(" ");
-            }
-            
-            String sql = sqlBuilder.toString().trim();
-            if (!sql.isEmpty() && SQL_PATTERN.matcher(sql).find()) {
-                SQLQuery query = new SQLQuery();
-                query.setFileName(fileName);
-                query.setLineNumber(lineNumber);
-                query.setRawQuery(sql);
-                query.setNormalizedQuery(normalizeQuery(sql));
-                query.setQueryType(detectQueryType(sql));
-                query.setConstructionMethod("StringBuilder");
+            Matcher toStringMatcher = toStringPattern.matcher(searchRegion);
+            if (toStringMatcher.find()) {
+                // Extract all append calls up to the toString() call
+                String buildRegion = searchRegion.substring(0, toStringMatcher.start());
                 
-                queries.add(query);
+                StringBuilder sqlBuilder = new StringBuilder();
+                Pattern appendPattern = Pattern.compile(
+                    varName + "\\.append\\s*\\(\\s*\"([^\"]*(?:\\\\.[^\"]*)*)\"\\s*\\)",
+                    Pattern.DOTALL
+                );
+                
+                Matcher appendMatcher = appendPattern.matcher(buildRegion);
+                boolean foundAppends = false;
+                
+                while (appendMatcher.find()) {
+                    String appendContent = appendMatcher.group(1);
+                    // Unescape the string content
+                    appendContent = appendContent.replace("\\\"", "\"")
+                                               .replace("\\n", " ")
+                                               .replace("\\t", " ");
+                    sqlBuilder.append(appendContent).append(" ");
+                    foundAppends = true;
+                }
+                
+                // Also look for .append() with variables or expressions
+                Pattern appendVarPattern = Pattern.compile(
+                    varName + "\\.append\\s*\\(\\s*([^)]+)\\s*\\)",
+                    Pattern.DOTALL
+                );
+                Matcher appendVarMatcher = appendVarPattern.matcher(buildRegion);
+                while (appendVarMatcher.find()) {
+                    String appendExpr = appendVarMatcher.group(1).trim();
+                    // If it's not a string literal, try to evaluate simple expressions
+                    if (!appendExpr.startsWith("\"")) {
+                        // For simple variable references or numbers, add placeholder
+                        if (appendExpr.matches("\\w+") || appendExpr.matches("\\d+")) {
+                            sqlBuilder.append(" ? ");
+                        }
+                    }
+                }
+                
+                if (foundAppends) {
+                    String sql = sqlBuilder.toString().trim();
+                    // Clean up extra spaces
+                    sql = sql.replaceAll("\\s+", " ");
+                    
+                    // Only add if it looks like SQL
+                    if (!sql.isEmpty() && SQL_PATTERN.matcher(sql).find()) {
+                        SQLQuery query = new SQLQuery();
+                        query.setFileName(fileName);
+                        query.setLineNumber(lineNumber);
+                        query.setRawQuery(sql);
+                        query.setNormalizedQuery(normalizeQuery(sql));
+                        query.setQueryType(detectQueryType(sql));
+                        query.setConstructionMethod("StringBuilder");
+                        
+                        queries.add(query);
+                    }
+                }
             }
         }
         
         return queries;
+    }
+    
+    /**
+     * Check if a SQL query seems syntactically complete
+     */
+    private boolean isQueryComplete(String sql) {
+        String upper = sql.toUpperCase().trim();
+        
+        // Check for balanced parentheses
+        int openParens = 0;
+        for (char c : sql.toCharArray()) {
+            if (c == '(') openParens++;
+            if (c == ')') openParens--;
+        }
+        if (openParens != 0) return false;
+        
+        // Check for common complete patterns
+        if (upper.startsWith("SELECT")) {
+            return upper.contains("FROM");
+        }
+        if (upper.startsWith("INSERT")) {
+            return upper.contains("INTO") && (upper.contains("VALUES") || upper.contains("SELECT"));
+        }
+        if (upper.startsWith("UPDATE")) {
+            return upper.contains("SET");
+        }
+        if (upper.startsWith("DELETE")) {
+            return upper.contains("FROM");
+        }
+        
+        return true; // For other types, assume complete
     }
     
     /**

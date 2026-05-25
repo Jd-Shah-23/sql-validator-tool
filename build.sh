@@ -43,25 +43,49 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# Step 4: Compile MultiDatabaseValidator (depends on SQLQuery, ValidationResult)
+# Step 3b: Compile JavaParserSQLExtractor (depends on SQLQuery and JavaParser)
+echo "  Compiling JavaParserSQLExtractor..."
+javac -d bin -cp bin:javaparser-core-3.25.5.jar src/extractor/JavaParserSQLExtractor.java
+if [ $? -ne 0 ]; then
+    echo "❌ Compilation failed at JavaParserSQLExtractor!"
+    exit 1
+fi
+
+# Step 4: Compile SyntaxValidator (depends on nothing)
+echo "  Compiling SyntaxValidator..."
+javac -d bin -cp bin:lib/jsqlparser-4.6.jar src/validator/SyntaxValidator.java
+if [ $? -ne 0 ]; then
+    echo "❌ Compilation failed at SyntaxValidator!"
+    exit 1
+fi
+
+# Step 5: Compile EnhancedSQLRewriter (depends on nothing)
+echo "  Compiling EnhancedSQLRewriter..."
+javac -d bin -cp bin:lib/jsqlparser-4.6.jar src/validator/EnhancedSQLRewriter.java
+if [ $? -ne 0 ]; then
+    echo "❌ Compilation failed at EnhancedSQLRewriter!"
+    exit 1
+fi
+
+# Step 6: Compile MultiDatabaseValidator (depends on SQLQuery, ValidationResult, SyntaxValidator, EnhancedSQLRewriter)
 echo "  Compiling MultiDatabaseValidator..."
-javac -d bin -cp bin src/validator/MultiDatabaseValidator.java
+javac -d bin -cp bin:lib/jsqlparser-4.6.jar src/validator/MultiDatabaseValidator.java
 if [ $? -ne 0 ]; then
     echo "❌ Compilation failed at MultiDatabaseValidator!"
     exit 1
 fi
 
-# Step 5: Compile ConsoleReporter (depends on SQLQuery, ValidationResult)
+# Step 7: Compile ConsoleReporter (depends on SQLQuery, ValidationResult, EnhancedSQLRewriter)
 echo "  Compiling ConsoleReporter..."
-javac -d bin -cp bin src/reporter/ConsoleReporter.java
+javac -d bin -cp bin:lib/jsqlparser-4.6.jar src/reporter/ConsoleReporter.java
 if [ $? -ne 0 ]; then
     echo "❌ Compilation failed at ConsoleReporter!"
     exit 1
 fi
 
-# Step 6: Compile SQLValidatorMain (depends on all above)
+# Step 8: Compile SQLValidatorMain (depends on all above)
 echo "  Compiling SQLValidatorMain..."
-javac -d bin -cp bin src/SQLValidatorMain.java
+javac -d bin -cp bin:lib/jsqlparser-4.6.jar src/SQLValidatorMain.java
 if [ $? -ne 0 ]; then
     echo "❌ Compilation failed at SQLValidatorMain!"
     exit 1
@@ -78,8 +102,13 @@ Main-Class: com.ibm.aip.validator.SQLValidatorMain
 
 EOF
 
-# Create JAR file
+# Create JAR file with dependencies
 echo "📦 Creating JAR file..."
+cd bin
+jar xf ../lib/jsqlparser-4.6.jar
+jar xf ../javaparser-core-3.25.5.jar
+rm -rf META-INF
+cd ..
 jar cvfm sql-validator.jar manifest.txt -C bin .
 
 if [ $? -ne 0 ]; then

@@ -1,6 +1,7 @@
 package com.ibm.aip.validator;
 
 import com.ibm.aip.validator.extractor.JavaSQLExtractor;
+import com.ibm.aip.validator.extractor.JavaParserSQLExtractor;
 import com.ibm.aip.validator.extractor.SQLQuery;
 import com.ibm.aip.validator.validator.MultiDatabaseValidator;
 import com.ibm.aip.validator.reporter.ConsoleReporter;
@@ -38,19 +39,19 @@ public class SQLValidatorMain {
             // Configuration not needed for static analysis
             System.out.println("ℹ️  Using static analysis (no database connection required)");
             
-            // Extract SQL queries from Java files
-            JavaSQLExtractor extractor = new JavaSQLExtractor();
+            // Extract SQL queries from Java files using JavaParser (AST-based)
+            System.out.println("🔬 Using JavaParser for accurate SQL extraction");
             List<SQLQuery> queries;
             
             if (cmdArgs.scanDirectory != null) {
                 System.out.println("📂 Scanning directory: " + cmdArgs.scanDirectory);
                 System.out.println("   Recursive: " + cmdArgs.recursive);
                 File dir = new File(cmdArgs.scanDirectory);
-                queries = extractor.extractFromDirectory(dir, cmdArgs.recursive);
+                queries = JavaParserSQLExtractor.extractFromDirectory(dir, cmdArgs.recursive);
             } else if (cmdArgs.javaFile != null) {
                 System.out.println("📄 Analyzing file: " + cmdArgs.javaFile);
                 File file = new File(cmdArgs.javaFile);
-                queries = extractor.extractFromFile(file);
+                queries = JavaParserSQLExtractor.extractFromFile(file);
             } else {
                 System.err.println("❌ Error: Either --scan or --file must be specified");
                 printHelp();
